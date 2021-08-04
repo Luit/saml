@@ -99,6 +99,10 @@ type ServiceProvider struct {
 	// has a SSO session at the IdP.
 	ForceAuthn *bool
 
+	//Scoping allows a service provider to specify a list of identity providers
+	//in an authnRequest to a proxying identity provider.
+	Scoping *Scoping
+
 	// AllowIdpInitiated
 	AllowIDPInitiated bool
 
@@ -344,6 +348,7 @@ func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding stri
 			Format: "urn:oasis:names:tc:SAML:2.0:nameid-format:entity",
 			Value:  firstSet(sp.EntityID, sp.MetadataURL.String()),
 		},
+		Scoping: sp.Scoping,
 		NameIDPolicy: &NameIDPolicy{
 			AllowCreate: &allowCreate,
 			// TODO(ross): figure out exactly policy we need

@@ -30,7 +30,7 @@ type AuthnRequest struct {
 	NameIDPolicy *NameIDPolicy `xml:"urn:oasis:names:tc:SAML:2.0:protocol NameIDPolicy"`
 	Conditions   *Conditions
 	//RequestedAuthnContext *RequestedAuthnContext // TODO
-	//Scoping               *Scoping // TODO
+	Scoping *Scoping `xml:"urn:oasis:names:tc:SAML:2.0:protocol Scoping"`
 
 	ForceAuthn                     *bool  `xml:",attr"`
 	IsPassive                      *bool  `xml:",attr"`
@@ -184,9 +184,9 @@ func (r *AuthnRequest) Element() *etree.Element {
 	//if r.RequestedAuthnContext != nil {
 	//	el.AddChild(r.RequestedAuthnContext.Element())
 	//}
-	//if r.Scoping != nil {
-	//	el.AddChild(r.Scoping.Element())
-	//}
+	if r.Scoping != nil {
+		el.AddChild(r.Scoping.Element())
+	}
 	if r.ForceAuthn != nil {
 		el.CreateAttr("ForceAuthn", strconv.FormatBool(*r.ForceAuthn))
 	}
@@ -792,6 +792,49 @@ func (c *Conditions) Element() *etree.Element {
 	if c.ProxyRestriction != nil {
 		el.AddChild(c.ProxyRestriction.Element())
 	}
+	return el
+}
+
+// Scoping represents the SAML element Scoping
+//
+// See http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+type Scoping struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol Scoping"`
+	IDPList *IDPList
+}
+
+func (s *Scoping) Element() *etree.Element {
+	el := etree.NewElement("samlp:Scoping")
+	if s.IDPList != nil {
+		el.AddChild(s.IDPList.Element())
+	}
+
+	return el
+}
+
+type IDPList struct {
+	IDPEntries *IDPEntry `xml:"IDPEntry"`
+}
+
+// Element returns an etree.Element representing the object in XML form.
+func (l *IDPList) Element() *etree.Element {
+	el := etree.NewElement("samlp:IDPList")
+	if l.IDPEntries != nil {
+		el.AddChild(l.IDPEntries.Element())
+	}
+
+	return el
+}
+
+type IDPEntry struct {
+	ProviderID string `xml:",attr"`
+}
+
+// Element returns an etree.Element representing the object in XML form.
+func (e *IDPEntry) Element() *etree.Element {
+	el := etree.NewElement("samlp:IDPEntry")
+	el.CreateAttr("ProviderID", e.ProviderID)
+
 	return el
 }
 
