@@ -140,7 +140,7 @@ func (m *Middleware) HandleStartAuthFlow(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	authReq, err := m.ServiceProvider.MakeAuthenticationRequest(bindingLocation, binding)
+	authReq, err := m.ServiceProvider.MakeAuthenticationRequest(bindingLocation, binding, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

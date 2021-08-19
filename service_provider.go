@@ -210,7 +210,7 @@ func (sp *ServiceProvider) Metadata() *EntityDescriptor {
 // the HTTP-Redirect binding. It returns a URL that we will redirect the user to
 // in order to start the auth process.
 func (sp *ServiceProvider) MakeRedirectAuthenticationRequest(relayState string) (*url.URL, error) {
-	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPRedirectBinding), HTTPRedirectBinding)
+	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPRedirectBinding), HTTPRedirectBinding, "")
 	if err != nil {
 		return nil, err
 	}
@@ -333,8 +333,7 @@ func (sp *ServiceProvider) getIDPSigningCerts() ([]*x509.Certificate, error) {
 
 // MakeAuthenticationRequest produces a new AuthnRequest object to send to the idpURL
 // that uses the specified binding (HTTPRedirectBinding or HTTPPostBinding)
-func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding string) (*AuthnRequest, error) {
-
+func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding string, providerID string) (*AuthnRequest, error) {
 	allowCreate := true
 	nameIDFormat := sp.nameIDFormat()
 	req := AuthnRequest{
@@ -348,7 +347,13 @@ func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding stri
 			Format: "urn:oasis:names:tc:SAML:2.0:nameid-format:entity",
 			Value:  firstSet(sp.EntityID, sp.MetadataURL.String()),
 		},
-		Scoping: sp.Scoping,
+		Scoping: &Scoping{
+			IDPList: &IDPList{
+				IDPEntries: &IDPEntry{
+					ProviderID: providerID,
+				},
+			},
+		},
 		NameIDPolicy: &NameIDPolicy{
 			AllowCreate: &allowCreate,
 			// TODO(ross): figure out exactly policy we need
@@ -418,7 +423,7 @@ func (sp *ServiceProvider) SignAuthnRequest(req *AuthnRequest) error {
 // the HTTP-POST binding. It returns HTML text representing an HTML form that
 // can be sent presented to a browser to initiate the login process.
 func (sp *ServiceProvider) MakePostAuthenticationRequest(relayState string) ([]byte, error) {
-	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPPostBinding), HTTPPostBinding)
+	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPPostBinding), HTTPPostBinding, "")
 	if err != nil {
 		return nil, err
 	}
