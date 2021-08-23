@@ -140,7 +140,7 @@ func (m *Middleware) HandleStartAuthFlow(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	authReq, err := m.ServiceProvider.MakeAuthenticationRequest(bindingLocation, binding, "")
+	authReq, err := m.ServiceProvider.MakeAuthenticationRequest(bindingLocation, binding, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -167,13 +167,18 @@ func (m *Middleware) HandleStartAuthFlow(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if binding == saml.HTTPPostBinding {
+		postForm, err := authReq.Post(relayState)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.Header().Add("Content-Security-Policy", ""+
 			"default-src; "+
 			"script-src 'sha256-AjPdJSbZmeWHnEc5ykvJFay8FTWeTeRbs9dutfZ0HqE='; "+
 			"reflected-xss block; referrer no-referrer;")
 		w.Header().Add("Content-type", "text/html")
 		w.Write([]byte(`<!DOCTYPE html><html><body>`))
-		w.Write(authReq.Post(relayState))
+		w.Write(postForm)
 		w.Write([]byte(`</body></html>`))
 		return
 	}

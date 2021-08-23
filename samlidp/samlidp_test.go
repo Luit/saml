@@ -131,7 +131,7 @@ func TestHTTPCanHandleMetadataRequest(t *testing.T) {
 
 func TestHTTPCanSSORequest(t *testing.T) {
 	test := NewServerTest(t)
-	u, err := test.SP.MakeRedirectAuthenticationRequest("frob")
+	u, err := test.SP.MakeRedirectAuthenticationRequest("frob", nil)
 	assert.Check(t, err)
 
 	w := httptest.NewRecorder()

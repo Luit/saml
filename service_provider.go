@@ -99,10 +99,6 @@ type ServiceProvider struct {
 	// has a SSO session at the IdP.
 	ForceAuthn *bool
 
-	//Scoping allows a service provider to specify a list of identity providers
-	//in an authnRequest to a proxying identity provider.
-	Scoping *Scoping
-
 	// AllowIdpInitiated
 	AllowIDPInitiated bool
 
@@ -209,8 +205,8 @@ func (sp *ServiceProvider) Metadata() *EntityDescriptor {
 // MakeRedirectAuthenticationRequest creates a SAML authentication request using
 // the HTTP-Redirect binding. It returns a URL that we will redirect the user to
 // in order to start the auth process.
-func (sp *ServiceProvider) MakeRedirectAuthenticationRequest(relayState string) (*url.URL, error) {
-	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPRedirectBinding), HTTPRedirectBinding, "")
+func (sp *ServiceProvider) MakeRedirectAuthenticationRequest(relayState string, scoping *Scoping) (*url.URL, error) {
+	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPRedirectBinding), HTTPRedirectBinding, scoping)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +241,6 @@ func (req *AuthnRequest) Redirect(relayState string, sp *ServiceProvider) (*url.
 	if len(sp.SignatureMethod) > 0 {
 		query += "&SigAlg=" + url.QueryEscape(sp.SignatureMethod)
 		signingContext, err := GetSigningContext(sp)
-
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +328,7 @@ func (sp *ServiceProvider) getIDPSigningCerts() ([]*x509.Certificate, error) {
 
 // MakeAuthenticationRequest produces a new AuthnRequest object to send to the idpURL
 // that uses the specified binding (HTTPRedirectBinding or HTTPPostBinding)
-func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding string, providerID string) (*AuthnRequest, error) {
+func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding string, scoping *Scoping) (*AuthnRequest, error) {
 	allowCreate := true
 	nameIDFormat := sp.nameIDFormat()
 	req := AuthnRequest{
@@ -347,13 +342,6 @@ func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding stri
 			Format: "urn:oasis:names:tc:SAML:2.0:nameid-format:entity",
 			Value:  firstSet(sp.EntityID, sp.MetadataURL.String()),
 		},
-		Scoping: &Scoping{
-			IDPList: &IDPList{
-				IDPEntries: &IDPEntry{
-					ProviderID: providerID,
-				},
-			},
-		},
 		NameIDPolicy: &NameIDPolicy{
 			AllowCreate: &allowCreate,
 			// TODO(ross): figure out exactly policy we need
@@ -361,6 +349,7 @@ func (sp *ServiceProvider) MakeAuthenticationRequest(idpURL string, binding stri
 			// urn:oasis:names:tc:SAML:2.0:nameid-format:transient
 			Format: &nameIDFormat,
 		},
+		Scoping:    scoping,
 		ForceAuthn: sp.ForceAuthn,
 	}
 	// We don't need to sign the XML document if the IDP uses HTTP-Redirect binding
@@ -402,7 +391,6 @@ func GetSigningContext(sp *ServiceProvider) (*dsig.SigningContext, error) {
 
 // SignAuthnRequest adds the `Signature` element to the `AuthnRequest`.
 func (sp *ServiceProvider) SignAuthnRequest(req *AuthnRequest) error {
-
 	signingContext, err := GetSigningContext(sp)
 	if err != nil {
 		return err
@@ -422,32 +410,35 @@ func (sp *ServiceProvider) SignAuthnRequest(req *AuthnRequest) error {
 // MakePostAuthenticationRequest creates a SAML authentication request using
 // the HTTP-POST binding. It returns HTML text representing an HTML form that
 // can be sent presented to a browser to initiate the login process.
-func (sp *ServiceProvider) MakePostAuthenticationRequest(relayState string) ([]byte, error) {
-	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPPostBinding), HTTPPostBinding, "")
+func (sp *ServiceProvider) MakePostAuthenticationRequest(relayState string, scoping *Scoping) ([]byte, error) {
+	req, err := sp.MakeAuthenticationRequest(sp.GetSSOBindingLocation(HTTPPostBinding), HTTPPostBinding, scoping)
 	if err != nil {
 		return nil, err
 	}
-	return req.Post(relayState), nil
+	return req.Post(relayState)
 }
 
 // Post returns an HTML form suitable for using the HTTP-POST binding with the request
-func (req *AuthnRequest) Post(relayState string) []byte {
+func (req *AuthnRequest) Post(relayState string) ([]byte, error) {
 	doc := etree.NewDocument()
 	doc.SetRoot(req.Element())
 	reqBuf, err := doc.WriteToBytes()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	encodedReqBuf := base64.StdEncoding.EncodeToString(reqBuf)
 
-	tmpl := template.Must(template.New("saml-post-form").Parse(`` +
+	tmpl, err := template.New("saml-post-form").Parse(`` +
 		`<form method="post" action="{{.URL}}" id="SAMLRequestForm">` +
 		`<input type="hidden" name="SAMLRequest" value="{{.SAMLRequest}}" />` +
 		`<input type="hidden" name="RelayState" value="{{.RelayState}}" />` +
 		`<input id="SAMLSubmitButton" type="submit" value="Submit" />` +
 		`</form>` +
 		`<script>document.getElementById('SAMLSubmitButton').style.visibility="hidden";` +
-		`document.getElementById('SAMLRequestForm').submit();</script>`))
+		`document.getElementById('SAMLRequestForm').submit();</script>`)
+	if err != nil {
+		return nil, err
+	}
 	data := struct {
 		URL         string
 		SAMLRequest string
@@ -460,10 +451,10 @@ func (req *AuthnRequest) Post(relayState string) []byte {
 
 	rv := bytes.Buffer{}
 	if err := tmpl.Execute(&rv, data); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return rv.Bytes()
+	return rv.Bytes(), nil
 }
 
 // AssertionAttributes is a list of AssertionAttribute
@@ -569,7 +560,6 @@ func (sp *ServiceProvider) ParseResponse(req *http.Request, possibleRequestIDs [
 	}
 
 	return assertion, nil
-
 }
 
 // ParseXMLResponse validates the SAML IDP response and
@@ -972,7 +962,6 @@ func (sp *ServiceProvider) SignLogoutRequest(req *LogoutRequest) error {
 
 // MakeLogoutRequest produces a new LogoutRequest object for idpURL.
 func (sp *ServiceProvider) MakeLogoutRequest(idpURL, nameID string) (*LogoutRequest, error) {
-
 	req := LogoutRequest{
 		ID:           fmt.Sprintf("id-%x", randomBytes(20)),
 		IssueInstant: TimeNow(),
@@ -1005,23 +994,26 @@ func (sp *ServiceProvider) MakeRedirectLogoutRequest(nameID, relayState string) 
 	if err != nil {
 		return nil, err
 	}
-	return req.Redirect(relayState), nil
+	return req.Redirect(relayState)
 }
 
 // Redirect returns a URL suitable for using the redirect binding with the request
-func (req *LogoutRequest) Redirect(relayState string) *url.URL {
+func (req *LogoutRequest) Redirect(relayState string) (*url.URL, error) {
 	w := &bytes.Buffer{}
 	w1 := base64.NewEncoder(base64.StdEncoding, w)
 	w2, _ := flate.NewWriter(w1, 9)
 	doc := etree.NewDocument()
 	doc.SetRoot(req.Element())
 	if _, err := doc.WriteTo(w2); err != nil {
-		panic(err)
+		return nil, err
 	}
 	w2.Close()
 	w1.Close()
 
-	rv, _ := url.Parse(req.Destination)
+	rv, err := url.Parse(req.Destination)
+	if err != nil {
+		return nil, err
+	}
 
 	query := rv.Query()
 	query.Set("SAMLRequest", string(w.Bytes()))
@@ -1030,7 +1022,7 @@ func (req *LogoutRequest) Redirect(relayState string) *url.URL {
 	}
 	rv.RawQuery = query.Encode()
 
-	return rv
+	return rv, nil
 }
 
 // MakePostLogoutRequest creates a SAML authentication request using

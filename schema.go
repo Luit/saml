@@ -29,7 +29,7 @@ type AuthnRequest struct {
 	Subject      *Subject
 	NameIDPolicy *NameIDPolicy `xml:"urn:oasis:names:tc:SAML:2.0:protocol NameIDPolicy"`
 	Conditions   *Conditions
-	//RequestedAuthnContext *RequestedAuthnContext // TODO
+	// RequestedAuthnContext *RequestedAuthnContext // TODO
 	Scoping *Scoping `xml:"urn:oasis:names:tc:SAML:2.0:protocol Scoping"`
 
 	ForceAuthn                     *bool  `xml:",attr"`
@@ -797,43 +797,74 @@ func (c *Conditions) Element() *etree.Element {
 
 // Scoping represents the SAML element Scoping
 //
-// See http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+// See http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf §3.4.1.2
 type Scoping struct {
-	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol Scoping"`
-	IDPList *IDPList
+	XMLName      xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol Scoping"`
+	ProxyCount   *uint    `xml:",attr"`
+	IDPList      *IDPList `xml:"urn:oasis:names:tc:SAML:2.0:protocol IDPList"`
+	RequesterIDs []string `xml:"urn:oasis:names:tc:SAML:2.0:protocol RequesterID,omitempty"`
 }
 
+// Element returns an etree.Element representing the object in XML form.
 func (s *Scoping) Element() *etree.Element {
 	el := etree.NewElement("samlp:Scoping")
+	if s.ProxyCount != nil {
+		el.CreateAttr("ProxyCount", strconv.FormatUint(uint64(*s.ProxyCount), 10))
+	}
 	if s.IDPList != nil {
 		el.AddChild(s.IDPList.Element())
 	}
-
+	for _, requesterID := range s.RequesterIDs {
+		v := etree.NewElement("samlp:RequesterID")
+		v.SetText(requesterID)
+		el.AddChild(v)
+	}
 	return el
 }
 
+// IDPList represents the SAML element IDPList
+//
+// See http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf §3.4.1.3
 type IDPList struct {
-	IDPEntries *IDPEntry `xml:"IDPEntry"`
+	XMLName     xml.Name    `xml:"urn:oasis:names:tc:SAML:2.0:protocol IDPList"`
+	IDPEntries  []*IDPEntry `xml:"urn:oasis:names:tc:SAML:2.0:protocol IDPEntry"`
+	GetComplete string      `xml:"urn:oasis:names:tc:SAML:2.0:protocol GetComplete,omitempty"`
 }
 
 // Element returns an etree.Element representing the object in XML form.
 func (l *IDPList) Element() *etree.Element {
 	el := etree.NewElement("samlp:IDPList")
-	if l.IDPEntries != nil {
-		el.AddChild(l.IDPEntries.Element())
+	for _, v := range l.IDPEntries {
+		el.AddChild(v.Element())
 	}
-
+	if l.GetComplete != "" {
+		v := etree.NewElement("samlp:GetComplete")
+		v.SetText(l.GetComplete)
+		el.AddChild(v)
+	}
 	return el
 }
 
+// IDPEntry represents the SAML element IDPEntry
+//
+// See http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf §3.4.1.3.1
 type IDPEntry struct {
-	ProviderID string `xml:",attr"`
+	XMLName    xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol IDPEntry"`
+	ProviderID string   `xml:",attr"`
+	Name       string   `xml:",attr,omitempty"`
+	Loc        string   `xml:",attr,omitempty"`
 }
 
 // Element returns an etree.Element representing the object in XML form.
 func (e *IDPEntry) Element() *etree.Element {
 	el := etree.NewElement("samlp:IDPEntry")
 	el.CreateAttr("ProviderID", e.ProviderID)
+	if e.Name != "" {
+		el.CreateAttr("Name", e.Name)
+	}
+	if e.Loc != "" {
+		el.CreateAttr("Loc", e.Loc)
+	}
 
 	return el
 }
@@ -1015,9 +1046,9 @@ func (a *SubjectLocality) Element() *etree.Element {
 // See http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf §2.7.2.2
 type AuthnContext struct {
 	AuthnContextClassRef *AuthnContextClassRef
-	//AuthnContextDecl          *AuthnContextDecl        ... TODO
-	//AuthnContextDeclRef       *AuthnContextDeclRef     ... TODO
-	//AuthenticatingAuthorities []AuthenticatingAuthority... TODO
+	// AuthnContextDecl          *AuthnContextDecl        ... TODO
+	// AuthnContextDeclRef       *AuthnContextDeclRef     ... TODO
+	// AuthenticatingAuthorities []AuthenticatingAuthority... TODO
 }
 
 // Element returns an etree.Element representing the object in XML form.

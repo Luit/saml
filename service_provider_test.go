@@ -81,25 +81,25 @@ func TestSPCanSetAuthenticationNameIDFormat(t *testing.T) {
 	}
 
 	// defaults to "transient"
-	req, err := s.MakeAuthenticationRequest("", HTTPRedirectBinding, "")
+	req, err := s.MakeAuthenticationRequest("", HTTPRedirectBinding, nil)
 	assert.Check(t, err)
 	assert.Check(t, is.Equal(string(TransientNameIDFormat), *req.NameIDPolicy.Format))
 
 	// explicitly set to "transient"
 	s.AuthnNameIDFormat = TransientNameIDFormat
-	req, err = s.MakeAuthenticationRequest("", HTTPRedirectBinding, "")
+	req, err = s.MakeAuthenticationRequest("", HTTPRedirectBinding, nil)
 	assert.Check(t, err)
 	assert.Check(t, is.Equal(string(TransientNameIDFormat), *req.NameIDPolicy.Format))
 
 	// explicitly set to "unspecified"
 	s.AuthnNameIDFormat = UnspecifiedNameIDFormat
-	req, err = s.MakeAuthenticationRequest("", HTTPRedirectBinding, "")
+	req, err = s.MakeAuthenticationRequest("", HTTPRedirectBinding, nil)
 	assert.Check(t, err)
 	assert.Check(t, is.Equal("", *req.NameIDPolicy.Format))
 
 	// explicitly set to "emailAddress"
 	s.AuthnNameIDFormat = EmailAddressNameIDFormat
-	req, err = s.MakeAuthenticationRequest("", HTTPRedirectBinding, "")
+	req, err = s.MakeAuthenticationRequest("", HTTPRedirectBinding, nil)
 	assert.Check(t, err)
 	assert.Check(t, is.Equal(string(EmailAddressNameIDFormat), *req.NameIDPolicy.Format))
 }
@@ -139,7 +139,6 @@ func TestSPCanProduceMetadataWithBothCerts(t *testing.T) {
 	spMetadata, err := xml.MarshalIndent(s.Metadata(), "", "  ")
 	assert.Check(t, err)
 	golden.Assert(t, string(spMetadata), t.Name()+"_metadata")
-
 }
 
 func TestCanProduceMetadataNoCerts(t *testing.T) {
@@ -190,7 +189,7 @@ func TestSPCanProduceRedirectRequest(t *testing.T) {
 	err := xml.Unmarshal(test.IDPMetadata, &s.IDPMetadata)
 	assert.Check(t, err)
 
-	redirectURL, err := s.MakeRedirectAuthenticationRequest("relayState")
+	redirectURL, err := s.MakeRedirectAuthenticationRequest("relayState", nil)
 	assert.Check(t, err)
 
 	decodedRequest, err := testsaml.ParseRedirectRequest(redirectURL)
@@ -218,7 +217,7 @@ func TestSPCanProducePostRequest(t *testing.T) {
 	err := xml.Unmarshal(test.IDPMetadata, &s.IDPMetadata)
 	assert.Check(t, err)
 
-	form, err := s.MakePostAuthenticationRequest("relayState")
+	form, err := s.MakePostAuthenticationRequest("relayState", nil)
 	assert.Check(t, err)
 	golden.Assert(t, string(form), t.Name()+"_form")
 }
@@ -241,7 +240,7 @@ func TestSPCanProduceSignedRequestRedirectBinding(t *testing.T) {
 	err := xml.Unmarshal(test.IDPMetadata, &s.IDPMetadata)
 	assert.Check(t, err)
 
-	redirectURL, err := s.MakeRedirectAuthenticationRequest("relayState")
+	redirectURL, err := s.MakeRedirectAuthenticationRequest("relayState", nil)
 	assert.Check(t, err)
 	// Signature we check against in the query string was validated with
 	// https://www.samltool.com/validate_authn_req.php . Once we add
@@ -277,7 +276,7 @@ func TestSPCanProduceSignedRequestPostBinding(t *testing.T) {
 	err := xml.Unmarshal(test.IDPMetadata, &s.IDPMetadata)
 	assert.Check(t, err)
 
-	htmlForm, err := s.MakePostAuthenticationRequest("relayState")
+	htmlForm, err := s.MakePostAuthenticationRequest("relayState", nil)
 	assert.Check(t, err)
 	rgx := regexp.MustCompile(`\"SAMLRequest\" value=\"(.*?)\" /><input`)
 	rs := rgx.FindStringSubmatch(string(htmlForm))
@@ -306,7 +305,7 @@ func TestSPFailToProduceSignedRequestWithBogusSignatureMethod(t *testing.T) {
 	err := xml.Unmarshal(test.IDPMetadata, &s.IDPMetadata)
 	assert.Check(t, err)
 
-	_, err = s.MakeRedirectAuthenticationRequest("relayState")
+	_, err = s.MakeRedirectAuthenticationRequest("relayState", nil)
 	assert.Check(t, is.ErrorContains(err, ""), "invalid signing method bogus")
 }
 
@@ -1421,7 +1420,7 @@ func TestXswPermutationSevenIsRejected(t *testing.T) {
 	req := http.Request{PostForm: url.Values{}}
 	req.PostForm.Set("SAMLResponse", string(respStr))
 	_, err = s.ParseResponse(&req, []string{"ONELOGIN_4fee3b046395c4e751011e97f8900b5273d56685"})
-	//It's the assertion signature that can't be verified. The error message is generic and always mentions Response
+	// It's the assertion signature that can't be verified. The error message is generic and always mentions Response
 	assert.Check(t, is.Error(err.(*InvalidResponseError).PrivateErr,
 		"cannot validate signature on Response: Signature could not be verified"))
 }
@@ -1452,7 +1451,7 @@ func TestXswPermutationEightIsRejected(t *testing.T) {
 	req := http.Request{PostForm: url.Values{}}
 	req.PostForm.Set("SAMLResponse", string(respStr))
 	_, err = s.ParseResponse(&req, []string{"ONELOGIN_4fee3b046395c4e751011e97f8900b5273d56685"})
-	//It's the assertion signature that can't be verified. The error message is generic and always mentions Response
+	// It's the assertion signature that can't be verified. The error message is generic and always mentions Response
 	assert.Check(t, is.Error(err.(*InvalidResponseError).PrivateErr,
 		"cannot validate signature on Response: Signature could not be verified"))
 }
@@ -1483,7 +1482,7 @@ func TestXswPermutationNineIsRejected(t *testing.T) {
 	req := http.Request{PostForm: url.Values{}}
 	req.PostForm.Set("SAMLResponse", string(respStr))
 	_, err = s.ParseResponse(&req, []string{"ONELOGIN_4fee3b046395c4e751011e97f8900b5273d56685"})
-	//It's the assertion signature that can't be verified. The error message is generic and always mentions Response
+	// It's the assertion signature that can't be verified. The error message is generic and always mentions Response
 	assert.Check(t, is.Error(err.(*InvalidResponseError).PrivateErr,
 		"cannot validate signature on Response: Missing signature referencing the top-level element"))
 }

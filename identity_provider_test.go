@@ -241,7 +241,6 @@ func TestIDPHTTPCanHandleSSORequest(t *testing.T) {
 		test.IDP.Handler().ServeHTTP(w, r)
 		assert.Check(t, is.Equal(http.StatusBadRequest, w.Code))
 	}
-
 }
 
 func TestIDPCanHandleRequestWithNewSession(t *testing.T) {
@@ -256,7 +255,7 @@ func TestIDPCanHandleRequestWithNewSession(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	requestURL, err := test.SP.MakeRedirectAuthenticationRequest("ThisIsTheRelayState")
+	requestURL, err := test.SP.MakeRedirectAuthenticationRequest("ThisIsTheRelayState", nil)
 	assert.Check(t, err)
 
 	decodedRequest, err := testsaml.ParseRedirectRequest(requestURL)
@@ -282,7 +281,7 @@ func TestIDPCanHandleRequestWithExistingSession(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	requestURL, err := test.SP.MakeRedirectAuthenticationRequest("ThisIsTheRelayState")
+	requestURL, err := test.SP.MakeRedirectAuthenticationRequest("ThisIsTheRelayState", nil)
 	assert.Check(t, err)
 
 	decodedRequest, err := testsaml.ParseRedirectRequest(requestURL)
@@ -308,7 +307,7 @@ func TestIDPCanHandlePostRequestWithExistingSession(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	authRequest, err := test.SP.MakeAuthenticationRequest(test.SP.GetSSOBindingLocation(HTTPRedirectBinding), HTTPRedirectBinding, "")
+	authRequest, err := test.SP.MakeAuthenticationRequest(test.SP.GetSSOBindingLocation(HTTPRedirectBinding), HTTPRedirectBinding, nil)
 	assert.Check(t, err)
 	authRequestBuf, err := xml.Marshal(authRequest)
 	assert.Check(t, err)
@@ -490,7 +489,6 @@ func TestIDPCanValidate(t *testing.T) {
 			"</AuthnRequest>"),
 	}
 	assert.Check(t, is.Error(req.Validate(), "cannot find assertion consumer service: file does not exist"))
-
 }
 
 func TestIDPMakeAssertion(t *testing.T) {
@@ -885,7 +883,7 @@ func TestIDPRequestedAttributes(t *testing.T) {
 	err := xml.Unmarshal(golden.Get(t, "TestIDPRequestedAttributes_idp_metadata.xml"), &metadata)
 	assert.Check(t, err)
 
-	requestURL, err := test.SP.MakeRedirectAuthenticationRequest("ThisIsTheRelayState")
+	requestURL, err := test.SP.MakeRedirectAuthenticationRequest("ThisIsTheRelayState", nil)
 	assert.Check(t, err)
 
 	r, _ := http.NewRequest("GET", requestURL.String(), nil)
@@ -1005,7 +1003,8 @@ func TestIDPRequestedAttributes(t *testing.T) {
 					},
 				},
 			},
-		}}}
+		},
+	}}
 	assert.Check(t, is.DeepEqual(expectedAttributes, req.Assertion.AttributeStatements))
 }
 
